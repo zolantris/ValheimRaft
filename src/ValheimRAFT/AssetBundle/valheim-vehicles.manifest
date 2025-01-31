@@ -1,15 +1,15 @@
 ManifestFileVersion: 0
-CRC: 2204838294
+CRC: 1722567907
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 6ff939702c7c86511a8f496da7f6149d
+    Hash: c304741bf8593ad60b969d8617b1ccd6
   TypeTreeHash:
     serializedVersion: 2
-    Hash: 307a0571a905aa8390435e9040d27ed4
+    Hash: d8f024905b27cc255f2675d880be5359
   IncrementalBuildHash:
     serializedVersion: 2
-    Hash: 6ff939702c7c86511a8f496da7f6149d
+    Hash: c304741bf8593ad60b969d8617b1ccd6
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -79,6 +79,8 @@ ClassTypes:
 - Class: 137
   Script: {instanceID: 0}
 - Class: 138
+  Script: {instanceID: 0}
+- Class: 146
   Script: {instanceID: 0}
 - Class: 183
   Script: {instanceID: 0}
@@ -171,7 +173,9 @@ Assets:
 - Assets/ValheimVehicles/Prefabs/shared_ram_stake.prefab
 - Assets/ValheimVehicles/Prefabs/hull_wall_window_square_wood_2x2.prefab
 - Assets/ValheimVehicles/Prefabs/hull_rib_prow_wood_2x2.prefab
+- Assets/ValheimVehicles/Prefabs/wheel_set_hinge.prefab
 - Assets/ValheimVehicles/Material/WaterHeightMaterial.mat
+- Assets/ValheimVehicles/Prefabs/wheel_set_preview.prefab
 - Assets/ValheimVehicles/Material/bronze_nautilus_metal_rib 1.mat
 - Assets/ValheimVehicles/Prefabs/vehicle_ship_pieces.prefab
 - Assets/ValheimVehicles/Prefabs/nautilus_hatch.prefab
@@ -272,10 +276,12 @@ Assets:
 - Assets/ValheimVehicles/Material/wood_alt_piece_bg_masked.mat
 - Assets/ValheimVehicles/Material/iron Variant.mat
 - Assets/ValheimVehicles/Prefabs/rope_ladder.prefab
+- Assets/ValheimVehicles/Prefabs/vehicle_land.prefab
 - Assets/ValheimVehicles/Prefabs/shared_ram_blade.prefab
 - Assets/ValheimVehicles/Prefabs/shared_hull_wall_iron_worn.prefab
 - Assets/ValheimVehicles/Prefabs/hull_wall_wood_2x2.prefab
 - Assets/ValheimVehicles/Prefabs/GUI/edit_texture_panel.prefab
+- Assets/ValheimVehicles/Prefabs/wheel_single.prefab
 - Assets/ValheimVehicles/vehicle_icons.spriteatlasv2
 - Assets/ValheimVehicles/Prefabs/bottom_stand.prefab
 - Assets/ValheimVehicles/Prefabs/boarding_ramp.prefab

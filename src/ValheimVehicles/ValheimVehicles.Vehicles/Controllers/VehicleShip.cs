@@ -12,6 +12,7 @@ using ValheimRAFT;
 using ValheimRAFT.Patches;
 using ValheimVehicles.Config;
 using ValheimVehicles.Prefabs;
+using ValheimVehicles.SharedScripts;
 using ValheimVehicles.Vehicles.Controllers;
 using ValheimVehicles.Vehicles.Interfaces;
 using ValheimVehicles.Vehicles.Structs;
@@ -72,8 +73,24 @@ public class VehicleShip : MonoBehaviour, IVehicleShip
   private GameObject _ghostContainer;
   private ImpactEffect _impactEffect;
   public float TargetHeight => MovementController?.TargetHeight ?? 0f;
-
+  public bool IsLandVehicleFromPrefab = false;
+  public bool IsLandVehicle = false;
   public bool isCreative;
+
+  private BoxCollider m_floatCollider;
+  private BoxCollider m_onboardCollider;
+
+  public BoxCollider? FloatCollider
+  {
+    get => m_floatCollider;
+    set => m_floatCollider = value;
+  }
+
+  public BoxCollider? OnboardCollider
+  {
+    get => m_onboardCollider;
+    set => m_onboardCollider = value;
+  }
 
   public static bool HasVehicleDebugger =>
     VehicleDebugConfig.VehicleDebugMenuEnabled.Value;
@@ -102,6 +119,7 @@ public class VehicleShip : MonoBehaviour, IVehicleShip
   public VehicleMovementController? MovementController { get; set; }
 
   public VehicleOnboardController? OnboardController { get; set; }
+  public VehicleWheelController? WheelController { get; set; }
 
   public VehicleShip Instance => this;
 
@@ -261,14 +279,53 @@ public class VehicleShip : MonoBehaviour, IVehicleShip
     }
 
     vehicleMovementTransform = GetVehicleMovementTransform(transform);
+  }
+
+  public void InitializeAllComponents()
+  {
+    var shouldRun =
+      MovementController == null || PiecesController == null ||
+      OnboardController == null;
+    if (!shouldRun) return;
 
     InitializeVehiclePiecesController();
     InitializeMovementController();
     InitializeOnboardController();
+    InitializeShipEffects();
+    InitializeWheelController();
 
+
+    // Re-attaches all the components to the initialized components (if they are valid).
+    RebindAllComponents();
+
+    
     // For starting the vehicle pieces.
-    PiecesController.InitFromShip(Instance);
-    InitStarterPiece();
+    if (PiecesController != null)
+    {
+      PiecesController.InitFromShip(Instance);
+      InitStarterPiece();
+    }
+    else
+    {
+      Logger.LogError(
+        "InitializeAllComponents somehow failed, PiecesController does not exist");
+    }
+  }
+
+  /// <summary>
+  /// TODO might use this instead of getter/setters from VehicleShip shared instance.
+  /// </summary>
+  public void RebindAllComponents()
+  {
+    // Init colliders
+    if (PiecesController != null)
+    {
+      FloatCollider = PiecesController.FloatCollider;
+      OnboardCollider = PiecesController.OnboardCollider;
+    }
+
+    if (MovementController != null && FloatCollider != null)
+      MovementController.m_floatcollider = FloatCollider;
   }
 
   public void InitializeMovementController()
@@ -281,17 +338,14 @@ public class VehicleShip : MonoBehaviour, IVehicleShip
           gameObject.AddComponent<VehicleMovementController>();
       MovementController = movementController;
     }
+  }
 
-    if (PiecesController != null)
-      PiecesController.MovementController = MovementController;
-
-    if (OnboardController != null)
-      OnboardController.MovementController = MovementController;
-
+  public void InitializeShipEffects()
+  {
     if (ShipEffectsObj == null)
     {
-      ShipEffects = MovementController.GetComponent<VehicleShipEffects>();
-      ShipEffectsObj = ShipEffects.gameObject;
+      ShipEffects = GetComponent<VehicleShipEffects>();
+      if (ShipEffects != null) ShipEffectsObj = ShipEffects.gameObject;
     }
   }
 
@@ -300,18 +354,37 @@ public class VehicleShip : MonoBehaviour, IVehicleShip
   /// </summary>
   public void InitializeOnboardController()
   {
-    if (MovementController == null || PiecesController == null)
+    if (PiecesController == null)
     {
       Logger.LogError(
-        $"MovementController: {MovementController}, PiecesController {PiecesController} not initialized this likely means the mod is unstable");
+        $"PiecesController {PiecesController} not initialized. We cannot initialize OnboardController without it. The mod is likely unstable. Report this bug.");
       return;
     }
 
-    PiecesController.OnboardController = PiecesController.OnboardCollider
+    OnboardController = PiecesController.OnboardCollider
       .gameObject
       .AddComponent<VehicleOnboardController>();
-    OnboardController = PiecesController.OnboardController;
-    MovementController.OnboardController = PiecesController.OnboardController;
+    OnboardController.vehicleShip = this;
+  }
+
+  /// <summary>
+  /// For land vehicles
+  /// </summary>
+  public void InitializeWheelController()
+  {
+    if (!IsLandVehicle || MovementController == null) return;
+
+    WheelController = gameObject.AddComponent<VehicleWheelController>();
+    WheelController.wheelPrefab = LoadValheimVehicleAssets.WheelSingle;
+    WheelController.UseManualControls = true;
+    WheelController.magicTurnRate = 20;
+    WheelController.inputForwardForce = 0;
+    WheelController.forwardDirection = MovementController.ShipDirection;
+    WheelController.inputTurnForce = 0;
+    WheelController.m_steeringType = VehicleWheelController.SteeringType.Magic;
+
+    if (WheelController == null)
+      Logger.LogError("Error initializing WheelController");
   }
 
   public void Start()
@@ -326,13 +399,31 @@ public class VehicleShip : MonoBehaviour, IVehicleShip
   {
     if (!NetView) NetView = GetComponent<ZNetView>();
 
+    var isValidZdo = NetView != null && NetView.GetZDO() != null;
+
+    if (isValidZdo && !IsLandVehicleFromPrefab)
+    {
+      var zdo = NetView.GetZDO();
+      if (zdo != null)
+        IsLandVehicle = IsLandVehicleFromPrefab ||
+                        zdo.GetBool(VehicleZdoVars.IsLandVehicle);
+      else
+        IsLandVehicle = IsLandVehicleFromPrefab;
+    }
+    else
+    {
+      IsLandVehicle = IsLandVehicleFromPrefab;
+    }
+
     GetPersistentID();
 
     if (PersistentZdoId != 0 && !AllVehicles.ContainsKey(PersistentZdoId))
       AllVehicles.Add(PersistentZdoId, this);
 
-    InitializeVehiclePiecesController();
-    if (HasVehicleDebugger && PiecesController) InitializeVehicleDebugger();
+    if (isValidZdo) InitializeAllComponents();
+
+    if (HasVehicleDebugger && PiecesController != null)
+      InitializeVehicleDebugger();
   }
 
   public void UpdateShipZdoPosition()
@@ -352,6 +443,11 @@ public class VehicleShip : MonoBehaviour, IVehicleShip
   private GameObject GetStarterPiece()
   {
     string selectedPrefab;
+    if (IsLandVehicle)
+      return PrefabManager.Instance.GetPrefab(PrefabNames.GetHullSlabName(
+        ShipHulls.HullMaterial.Wood,
+        PrefabNames.PrefabSizeVariant.FourByFour));
+
     switch (StartingPiece?.Value)
     {
       case VehicleShipInitPiece.HullFloor2X2:
@@ -405,6 +501,7 @@ public class VehicleShip : MonoBehaviour, IVehicleShip
 
   private void InitStarterPiece()
   {
+    if (PiecesController == null) return;
     if (!CanInitHullPiece)
     {
       NetView.GetZDO().Set(VehicleZdoVars.ZdoKeyBaseVehicleInitState, true);
@@ -423,13 +520,43 @@ public class VehicleShip : MonoBehaviour, IVehicleShip
 
     var prefab = GetStarterPiece();
     if (!prefab) return;
+    var localTransform = transform;
+    if (IsLandVehicle)
+    {
+      // we use the same alignments of the slabs in the ghost preview
+      var slabTransform = transform.Find("ghostContainer_demo/preview_slabs");
+      if (slabTransform != null)
+      {
+        for (var i = 0; i < slabTransform.childCount; i++)
+        {
+          var slabTopLevelChild = slabTransform.GetChild(i);
+          if (slabTopLevelChild == null) continue;
+        var hull =
+          Instantiate(prefab, slabTopLevelChild.position,
+            slabTopLevelChild.rotation, null);
+        if (hull == null) return;
+        var hullNetView = hull.GetComponent<ZNetView>();
+        PiecesController.AddNewPiece(hullNetView);
+        }
+      }
+      else
+      {
+        var hull = Instantiate(prefab, localTransform.position,
+          localTransform.rotation, null);
+        if (hull == null) return;
+        var hullNetView = hull.GetComponent<ZNetView>();
+        PiecesController.AddNewPiece(hullNetView);
+      }
+    }
+    else
+    {
+      var hull = Instantiate(prefab, localTransform.position,
+        localTransform.rotation, null);
+      if (hull == null) return;
+      var hullNetView = hull.GetComponent<ZNetView>();
+      PiecesController.AddNewPiece(hullNetView);
+    }
 
-    var hull = Instantiate(prefab, transform.position, transform.rotation);
-    if (hull == null) return;
-
-    var hullNetView = hull.GetComponent<ZNetView>();
-
-    PiecesController.AddNewPiece(hullNetView);
     PiecesController.SetInitComplete();
   }
 
@@ -494,12 +621,10 @@ public class VehicleShip : MonoBehaviour, IVehicleShip
     var vehiclePiecesContainer = VehiclePiecesPrefab.VehiclePiecesContainer;
     if (!vehiclePiecesContainer) return;
 
-    // var prevValue = ZNetView.m_useInitZDO;
-    // ZNetView.m_useInitZDO = false;
+    var localTransform = transform;
     _vehiclePiecesContainerInstance =
-      Instantiate(vehiclePiecesContainer, transform.position,
-        transform.rotation);
-    // ZNetView.m_useInitZDO = prevValue;
+      Instantiate(vehiclePiecesContainer, localTransform.position,
+        localTransform.rotation);
 
     PiecesController = _vehiclePiecesContainerInstance
       .AddComponent<VehiclePiecesController>();
